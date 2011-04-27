@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project default="jar" name="Create Runnable Jar for Project DiskIOBenchmark">
+    <!--this file was created by Eclipse Runnable JAR Export Wizard-->
+    <!--ANT 1.7 is required                                        -->
+    <target name="jar">
+        <jar destfile="${basedir}/bin/disk_io_benchmark.jar" filesetmanifest="mergewithoutmain">
+            <manifest>
+                <attribute name="Main-Class" value="benchmarks.DiskIOBenchmark"/>
+                <attribute name="Class-Path" value="."/>
+            </manifest>
+            <fileset dir="${basedir}/bin" excludes="**/*.jar"/>
+            <zipfileset excludes="META-INF/*.SF" src="${basedir}/commons-cli-1.2.jar"/>
+        </jar>
+    </target>
+</project>
