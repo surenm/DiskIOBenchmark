@@ -110,9 +110,45 @@ public class DiskIOBenchmark {
 			System.out.println("Number of blocks:" + blocks);
 		}
 		
+		String[] tempPaths = getFileListing(paths[0]);
+		String[] threadPaths = new String[5];
 		// The array of threads to create
 		Thread[] threads = new Thread[thread_count];
 		
+		System.arraycopy(tempPaths, 1, threadPaths, 0, 5);
+		// Start the time counter
+		long startTime = System.currentTimeMillis();
 		
+		// Create all IO Threads
+		for(int i=0; i < thread_count; i++)
+			try {
+				/* Find out which IO action is going to be done and accordingly
+				 * create threads
+				 */
+				if(ioAction == "read")
+					threads[i] = new ReadThread(threadPaths, chunkSize);
+				else 
+					threads[i] = new WriteThread(paths, blockSize, chunkSize);
+
+				// Run the thread
+				threads[i].run();
+				
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		
+		for(int i=0; i < thread_count; i++)
+			try {
+				// Join each IO thread
+				threads[i].join();
+				
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		
+		// Stop the time counter and calculate timeElapsed
+		long endTime = System.currentTimeMillis();
+		long timeElapsed = endTime-startTime;
+		System.out.println(timeElapsed);
 	}
 }

@@ -1,16 +1,14 @@
 package benchmarks;
 
-import java.io.InputStream;
-import java.io.Reader;
-import java.io.File;
-
-public class ReadThread extends Thread{
+public class WriteThread extends Thread{
 	private String[] filesList;
+	private long blockSize;
 	private int chunkSize;
 	private double timeElapsed;
 	
-	ReadThread(String[] _fileList, int _chunkSize ){
+	WriteThread(String[] _fileList, long _blockSize, int _chunkSize ){
 		filesList = _fileList;
+		blockSize = _blockSize;
 		chunkSize = _chunkSize;
 		timeElapsed = 0.0;
 	}
@@ -18,13 +16,14 @@ public class ReadThread extends Thread{
 	public void run(){
 		for (String fileName : filesList) {
 			long startTime = System.currentTimeMillis();
-			
-			System.out.println(fileName);
-			
+			try {
+				Thread.sleep(4000, 0);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
 			long endTime = System.currentTimeMillis();
 			timeElapsed += ( endTime - startTime );
-		}
-		System.out.println(timeElapsed);
-
+			System.out.println(timeElapsed);
+		}				
 	}
 }
