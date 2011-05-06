@@ -1,10 +1,12 @@
 package benchmarks;
 
 import java.io.File;
+import java.util.Vector;
+
 import org.apache.commons.cli.*;
 
 public class DiskIOBenchmark {
-	public static final boolean DEBUG = true ;
+	public static final boolean DEBUG = false ;
 
 	public static void main(String[] args) {
 		// Initiate a command line parser 
@@ -88,11 +90,13 @@ public class DiskIOBenchmark {
 	private static String[] getFileListing(String path){
 		File dirEntity = new File(path);
 		File[] fileList = dirEntity.listFiles();
-		String[] ret = new String[fileList.length];
-		int pos = 0 ;
+		Vector<String> retVector = new Vector<String>();
 		for (File file : fileList) {
-			ret[pos++] = file.getAbsolutePath();
+			if(!file.isDirectory())
+				retVector.add(file.getAbsolutePath());
 		}
+		String[] ret = new String[retVector.size()];
+		retVector.toArray(ret);
 		return ret;
 	}
 
@@ -110,28 +114,45 @@ public class DiskIOBenchmark {
 			System.out.println("Number of blocks:" + blocks);
 		}
 		
-		String[] tempPaths = getFileListing(paths[0]);
-		String[] threadPaths = new String[5];
+		Vector<String> fullPaths =new Vector<String>();
+		for (String path : paths) {
+			String[] fileListing = getFileListing(path);
+			for (String fileName : fileListing) {
+				fullPaths.add(fileName);
+			}
+		}
+		
+		if(thread_count > fullPaths.size()) thread_count = fullPaths.size();
+		int files_per_thread = fullPaths.size()/thread_count;
+		
 		// The array of threads to create
 		Thread[] threads = new Thread[thread_count];
-		
-		System.arraycopy(tempPaths, 1, threadPaths, 0, 5);
+				
 		// Start the time counter
 		long startTime = System.currentTimeMillis();
 		
 		// Create all IO Threads
 		for(int i=0; i < thread_count; i++)
 			try {
+				
+				String[] threadPaths = new String[files_per_thread];
+				
 				/* Find out which IO action is going to be done and accordingly
 				 * create threads
 				 */
-				if(ioAction == "read")
-					threads[i] = new ReadThread(threadPaths, chunkSize);
-				else 
-					threads[i] = new WriteThread(paths, blockSize, chunkSize);
-
+				if(ioAction == "read"){
+					fullPaths.subList(i*files_per_thread,(i+1)*files_per_thread).toArray(threadPaths);
+					ReadThread readThread = new ReadThread(threadPaths, chunkSize);
+					threads[i] = new Thread(readThread);
+				}
+					
+				else {
+					WriteThread writeThread = new WriteThread(paths, blockSize, chunkSize);
+					threads[i] = new Thread(writeThread);
+				}
+				
 				// Run the thread
-				threads[i].run();
+				threads[i].start();
 				
 			} catch (Exception e) {
 				e.printStackTrace();
