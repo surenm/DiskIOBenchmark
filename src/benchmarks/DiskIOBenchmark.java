@@ -2,18 +2,31 @@ package benchmarks;
 
 import java.io.File;
 import java.util.Vector;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-import org.apache.commons.cli.*;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.OptionBuilder;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
+import org.apache.commons.cli.PosixParser;
 
 public class DiskIOBenchmark {
-	public static final boolean DEBUG = false ;
+
+	static final boolean DEBUG = true ;
+	static Options options = new Options();
+	static private CountDownLatch startIO = new CountDownLatch(1);
 
 	public static void main(String[] args) {
 		// Initiate a command line parser 
 		CommandLineParser parser = new PosixParser();
 		
 		// create an options list 
-		Options options = new Options();
 		Option read = new Option("read", 
 			"if the IO operation to be performed is read");
 		Option write = new Option("write", 
@@ -54,6 +67,9 @@ public class DiskIOBenchmark {
 		int chunkSize = 4096;
 		try {
 			CommandLine commandLine = parser.parse(options, args);
+			if(commandLine.hasOption("help"))
+				printHelp();
+			
 			if(commandLine.hasOption("write")) 
 				ioAction = "write";
 			
@@ -83,8 +99,18 @@ public class DiskIOBenchmark {
 		catch (ParseException err){
 			System.err.println("Command line parsing failed. " +
 					"Reason:" + err.getMessage());
+			printHelp(1);
 		}
-		
+	}
+
+	private static void printHelp(int status) {
+		HelpFormatter helpFormatter = new HelpFormatter();
+		helpFormatter.printHelp("disk_io_benchmark.jar", options);
+		System.exit(status);
+	}
+	
+	private static void printHelp(){
+		printHelp(0);
 	}
 
 	private static String[] getFileListing(String path){
@@ -101,7 +127,7 @@ public class DiskIOBenchmark {
 	}
 
 	private static void doIO(String ioAction, String[] paths, int thread_count, 
-				int chunkSize, long blockSize, int blocks){
+				int chunkSize, long blockSize, int blocks) {
 		if(DEBUG) { 
 			System.out.println("IO Type: " + ioAction);
 			System.out.println("Paths: \n");
@@ -115,10 +141,21 @@ public class DiskIOBenchmark {
 		}
 		
 		Vector<String> fullPaths =new Vector<String>();
-		for (String path : paths) {
-			String[] fileListing = getFileListing(path);
-			for (String fileName : fileListing) {
-				fullPaths.add(fileName);
+		if(ioAction == "read"){
+			for (String path : paths) {
+				String[] fileListing = getFileListing(path);
+				for (String fileName : fileListing) {
+					fullPaths.add(fileName);
+				}
+			}
+		}
+		else {
+			for(String path : paths) {
+				if(path.charAt(path.length()-1) != '/') path = path + '/';
+				for(int i=0; i<blocks; i++){
+					String fileName = path + Integer.toString(i) + ".txt";
+					fullPaths.add(fileName);
+				}
 			}
 		}
 		
@@ -126,50 +163,86 @@ public class DiskIOBenchmark {
 		int files_per_thread = fullPaths.size()/thread_count;
 		
 		// The array of threads to create
-		Thread[] threads = new Thread[thread_count];
+		WorkerThread[] threads = new WorkerThread[thread_count];
 				
-		// Start the time counter
-		long startTime = System.currentTimeMillis();
-		
 		// Create all IO Threads
-		for(int i=0; i < thread_count; i++)
+		for(int i=0; i < thread_count; i++){
 			try {
-				
+				// Calculate the file names this particular thread is going to work upon
 				String[] threadPaths = new String[files_per_thread];
+				fullPaths.subList(i*files_per_thread,(i+1)*files_per_thread).toArray(threadPaths);
 				
 				/* Find out which IO action is going to be done and accordingly
 				 * create threads
 				 */
 				if(ioAction == "read"){
-					fullPaths.subList(i*files_per_thread,(i+1)*files_per_thread).toArray(threadPaths);
-					ReadThread readThread = new ReadThread(threadPaths, chunkSize);
-					threads[i] = new Thread(readThread);
-				}
-					
+					ReadThread readThread = new ReadThread(threadPaths, chunkSize, startIO);
+					threads[i] = readThread;
+					threads[i].setThread(new Thread(readThread));
+				}	
 				else {
-					WriteThread writeThread = new WriteThread(paths, blockSize, chunkSize);
-					threads[i] = new Thread(writeThread);
-				}
-				
-				// Run the thread
-				threads[i].start();
-				
-			} catch (Exception e) {
+					WriteThread writeThread = new WriteThread(threadPaths, blockSize, chunkSize, startIO);
+					threads[i]= writeThread; 
+					threads[i].setThread(new Thread(writeThread));
+				}	
+			} 
+			catch (Exception e) {
 				e.printStackTrace();
 			}
+		}
+	
+		// Start the time counter
 		
-		for(int i=0; i < thread_count; i++)
+		
+		for(int i=0; i < thread_count; i++){
+			// Run the thread
+			threads[i].threadInstance.start();
+		}
+		startIO.countDown();
+		try {
+			startIO.await();
+		} catch (InterruptedException e1) {
+			e1.printStackTrace();
+		}
+		long startTime = System.currentTimeMillis();
+		
+		for(int i=0; i < thread_count; i++){
 			try {
 				// Join each IO thread
-				threads[i].join();
+				threads[i].threadInstance.join();
 				
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
+		}
 		
 		// Stop the time counter and calculate timeElapsed
 		long endTime = System.currentTimeMillis();
-		long timeElapsed = endTime-startTime;
-		System.out.println(timeElapsed);
+		double timeElapsed = (endTime-startTime)/1000; //millisec to sec conversion
+		
+		// Calculate Throughput
+		double totalIOSize = 0;
+		for (String fileName : fullPaths) {
+			totalIOSize += Utils.get_file_size(fileName);
+		}
+		double overallThroughput = totalIOSize/(timeElapsed);
+		
+		//format all doubles to 4 decimal places
+		totalIOSize = Utils.round_off(totalIOSize);
+		overallThroughput = Utils.round_off(overallThroughput);
+		
+		//Print the comma separated values of results
+		System.out.print(ioAction); System.out.print(',');
+		System.out.print(chunkSize); System.out.print(',');
+		System.out.print(totalIOSize); System.out.print(',');
+		System.out.print(timeElapsed); System.out.print(',');
+		System.out.print(thread_count); System.out.print(',');
+		System.out.print(paths.length); System.out.print(',');
+		System.out.print(overallThroughput); System.out.print(',');
+		for(int i = 0; i < thread_count; i++){
+			System.out.print(threads[i].getThroughput()); 
+			if(i < thread_count-1) System.out.print(',');
+		}
+		System.out.println();
 	}
 }
