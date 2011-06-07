@@ -60,4 +60,12 @@ public class WriteThread extends WorkerThread{
 	public double getThroughput(){
 		return Utils.round_off(throughput); 
 	}
+	
+	public String getFileListString(){
+		String ret = new String();
+		for (String fileName : filesList) {
+			ret += fileName + " ";
+		}
+		return ret ;
+	}
 }

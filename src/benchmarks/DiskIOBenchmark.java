@@ -18,7 +18,7 @@ import org.apache.commons.cli.PosixParser;
 
 public class DiskIOBenchmark {
 
-	static final boolean DEBUG = true ;
+	static final boolean DEBUG = false ;
 	static Options options = new Options();
 	static private CountDownLatch startIO = new CountDownLatch(1);
 
@@ -60,7 +60,7 @@ public class DiskIOBenchmark {
 		options.addOption(chunkSizeOption);
 	
 		//Options for calling do IO 
-		String ioAction = "read";
+		String ioAction = "";
 		int threads = 1 ;
 		int blocks = 1 ;
 		long blockSize = 1024 * 1024 * 100 ; 
@@ -72,6 +72,9 @@ public class DiskIOBenchmark {
 			
 			if(commandLine.hasOption("write")) 
 				ioAction = "write";
+			
+			if(commandLine.hasOption("read"))
+				ioAction = "read";
 			
 			if(commandLine.hasOption("threads"))
 				threads = Integer.parseInt(commandLine.getOptionValue("threads"));
@@ -93,7 +96,10 @@ public class DiskIOBenchmark {
 				String path = System.getProperty("user.dir");
 				paths = new String[] { path } ;
 			}
-			
+			if(ioAction == "") {
+				System.err.println("Incorrect Usage");
+				printHelp(1);
+			}
 			doIO(ioAction, paths, threads, chunkSize, blockSize, blocks);
 		}
 		catch (ParseException err){
@@ -241,7 +247,12 @@ public class DiskIOBenchmark {
 		System.out.print(overallThroughput); System.out.print(',');
 		for(int i = 0; i < thread_count; i++){
 			System.out.print(threads[i].getThroughput()); 
-			if(i < thread_count-1) System.out.print(',');
+			if(i < thread_count-1) System.out.print('-');
+		}
+		System.out.print(",");
+		for(int i = 0; i <thread_count; i++){
+			System.out.print(threads[i].getFileListString());
+			if(i < thread_count-1) System.out.print("- ");
 		}
 		System.out.println();
 	}
