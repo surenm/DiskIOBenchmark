@@ -252,7 +252,7 @@ public class DiskIOBenchmark {
 		System.out.print(",");
 		for(int i = 0; i <thread_count; i++){
 			System.out.print(threads[i].getFileListString());
-			if(i < thread_count-1) System.out.print("- ");
+			if(i < thread_count-1) System.out.print("-");
 		}
 		System.out.println();
 	}

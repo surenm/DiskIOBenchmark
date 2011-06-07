@@ -64,7 +64,7 @@ public class WriteThread extends WorkerThread{
 	public String getFileListString(){
 		String ret = new String();
 		for (String fileName : filesList) {
-			ret += fileName + " ";
+			ret += fileName + ":";
 		}
 		return ret ;
 	}
